@@ -17,6 +17,8 @@
 #include "sys_processor.h"
 #include "debugger.h"
 #include "hardware.h"
+#define STATIC_WORD_NAMES
+#include "__primitives.h"
 
 #define DBGC_ADDRESS 	(0x0F0)														// Colour scheme.
 #define DBGC_DATA 		(0x0FF)														// (Background is in main.c)
@@ -74,15 +76,29 @@ void DBGXRender(int *address,int runMode) {
 	for (int y = 0;y < 16;y++) {
 		int addr = (address[0]+y*4) & 0xFFFFC;
 		int isBrk = (addr == address[3]);
-		long code = CPUReadMemory(addr) & 0xFFFFFFFF;
+		int code = CPUReadMemory(addr) & 0xFFFFFFFF;
 		GFXNumber(GRID(0,y),addr,16,5,GRIDSIZE,isBrk ? DBGC_HIGHLIGHT:DBGC_ADDRESS,-1);
-		GFXNumber(GRID(6,y),code,16,8,GRIDSIZE,isBrk ? DBGC_HIGHLIGHT:DBGC_DATA,-1);
+		//GFXNumber(GRID(6,y),code,16,8,GRIDSIZE,isBrk ? DBGC_HIGHLIGHT:DBGC_DATA,-1);
 
 		char szBuffer[64];
 		int colour = DBGC_DATA;
 		strcpy(szBuffer,"?");
+		switch(code & 3) {
+			case 0:		break; // CALL			
+			case 1:		code = code >> 2;
+						sprintf(szBuffer,"(core %x)",code);
+						if (code >= 0 && code < COP_COUNT) strcpy(szBuffer,__primitives[code]);
+						colour = 0x0FF;
+						break;
+			case 2: 	break; // STRING
+			case 3:		code = (code >> 2);
+						if (code & 0x20000000) code |= 0xC0000000;
+						sprintf(szBuffer,"%x",code);
+						colour = 0xFF0;
+						break; 
+		}
 		szBuffer[32] = '\0';
-		//GFXString(GRID(6,y),szBuffer,GRIDSIZE,colour,-1);
+		GFXString(GRID(6,y),szBuffer,GRIDSIZE,colour,-1);
 	}
 	if (runMode) {
 		int szx = 4,szy = 3;

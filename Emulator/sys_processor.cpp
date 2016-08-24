@@ -14,6 +14,7 @@
 #include "sys_processor.h"
 #include "sys_debug_system.h"
 #include "hardware.h"
+#include "__primitives.h"
 
 static void _CPUExecutePrimitive(BYTE8 opcode);
 
@@ -55,13 +56,19 @@ static BYTE8* bMemory = (BYTE8 *)memory;											// Access memory byte wise.
 //														Reset the CPU
 // *******************************************************************************************************************************
 
+#define LITERAL(x)  memory[pctr++] = ((((x) & 0x3FFFFFFF) << 2) | 3)				// Assembler Macros
+#define CORE(x) memory[pctr++] = ((x) << 2) | 1
+
 void CPUReset(void) {
 	HWIReset();
 	pctr = 0x00000;
 	rsp = RST_RSP;
 	dsp = RST_DSP;
 	cycles = 0;
-	int base = 0;																	// We can test the relocation.
+	LITERAL(42);
+	LITERAL(16);
+	CORE(COP_STORE);
+	pctr = 0x00000;
 }
 
 // *******************************************************************************************************************************
@@ -73,7 +80,21 @@ BYTE8 CPUExecuteInstruction(void) {
 	LONG32 instruction = memory[pctr >> 2];											// Fetch instruction
 	pctr = (pctr + 4) & 0xFFFFC;													// Bump PC
 
-	// TODO: Execute.
+	switch (instruction & 3) {
+		case 0:																		// 00 call
+			break;
+		case 1:																		// 01 core command
+			_CPUExecutePrimitive(instruction >> 2);
+			break;
+		case 2:																		// 02 definition/string
+			break;
+		case 3:																		// 03 literal.
+			instruction = instruction >> 2;											// 30 bit unsigned.
+			if (instruction & 0x20000000) instruction |= 0xC0000000;				// Sign extend
+			PUSHD(instruction)														// Push onto data stack.
+			break;
+	}
+
 	cycles++;
 	if (cycles < CYCLES_PER_FRAME) return 0;										// Not completed a frame.
 	cycles = cycles - CYCLES_PER_FRAME;												// Adjust this frame rate.
@@ -85,7 +106,125 @@ BYTE8 CPUExecuteInstruction(void) {
 // *******************************************************************************************************************************
 
 static void _CPUExecutePrimitive(BYTE8 primitive) {
+	long addr,data;
+
 	switch (primitive) {
+
+		case COP_STORE:																// store word in memory
+			PULLD(addr);PULLD(data);memory[addr >> 2] = data;
+			break;
+
+		case COP_MUL:
+			break;
+
+		case COP_ADD:
+			break;
+
+		case COP_ADD_STORE:
+			break;
+
+		case COP_SUB:
+			break;
+
+		case COP_DIV:
+			break;
+
+		case COP_0_SUB:
+			break;
+
+		case COP_0_LESS:
+			break;
+
+		case COP_0_EQUAL:
+			break;
+
+		case COP_0_GREATER:
+			break;
+
+		case COP_1_ADD:
+			break;
+
+		case COP_1_SUB:
+			break;
+
+		case COP_2_MUL:
+			break;
+
+		case COP_2_DIV:
+			break;
+
+		case COP_RETURN:
+			break;
+
+		case COP_GREATER_R:
+			break;
+
+		case COP_READ:
+			break;
+
+		case COP_AND:
+			break;
+
+		case COP_C_STORE:
+			break;
+
+		case COP_C_READ:
+			break;
+
+		case COP_DROP:
+			break;
+
+		case COP_DSP_STORE:
+			break;
+
+		case COP_DSP_READ:
+			break;
+
+		case COP_DUP:
+			break;
+
+		case COP_FOR:
+			break;
+
+		case COP_IF:
+			break;
+
+		case COP_NEXT:
+			break;
+
+		case COP_NOT:
+			break;
+
+		case COP_OR:
+			break;
+
+		case COP_OVER:
+			break;
+
+		case COP_R_GREATER:
+			break;
+
+		case COP_RDROP:
+			break;
+
+		case COP_ROT:
+			break;
+
+		case COP_RSP_STORE:
+			break;
+
+		case COP_RSP_READ:
+			break;
+
+		case COP_SWAP:
+			break;
+
+		case COP_THEN:
+			break;
+
+		case COP_XOR:
+			break;
+
 	}
 }
 
