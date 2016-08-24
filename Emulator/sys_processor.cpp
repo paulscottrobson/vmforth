@@ -29,6 +29,8 @@ static void _CPUExecutePrimitive(BYTE8 opcode);
 //														CPU / Memory
 // *******************************************************************************************************************************
 
+#define MMASK 0x3FFFF 
+
 static LONG32 memory[0x40000]; 														// 256k words of memory. (1M Bytes) 00000-FFFFF
 static LONG32 pctr;
 static LONG32 rsp;
@@ -42,6 +44,7 @@ static BYTE8* bMemory = (BYTE8 *)memory;											// Access memory byte wise.
 
 #define PUSHD(v) { dsp -= 4;memory[dsp >> 2] = (v); }
 #define PUSHR(v) { rsp -= 4;memory[rsp >> 2] = (v); }
+#define PUSHT(n) { n1 = ((n) != 0) ? 0xFFFFFFFF : 0; PUSHD(n1); }
 
 #define PULLD(tgt) { tgt = memory[dsp >> 2];dsp += 4; }
 #define PULLR(tgt) { tgt = memory[rsp >> 2];rsp += 4; }
@@ -65,9 +68,11 @@ void CPUReset(void) {
 	rsp = RST_RSP;
 	dsp = RST_DSP;
 	cycles = 0;
-	LITERAL(42);
-	LITERAL(16);
-	CORE(COP_STORE);
+	LITERAL(1);
+	LITERAL(2);
+	LITERAL(3);
+	CORE(COP_ROT);
+
 	pctr = 0x00000;
 }
 
@@ -78,7 +83,7 @@ void CPUReset(void) {
 BYTE8 CPUExecuteInstruction(void) {
 
 	LONG32 instruction = memory[pctr >> 2];											// Fetch instruction
-	pctr = (pctr + 4) & 0xFFFFC;													// Bump PC
+	pctr = (pctr + 4) & MMASK;														// Bump PC
 
 	switch (instruction & 3) {
 		case 0:																		// 00 call
@@ -106,123 +111,161 @@ BYTE8 CPUExecuteInstruction(void) {
 // *******************************************************************************************************************************
 
 static void _CPUExecutePrimitive(BYTE8 primitive) {
-	long addr,data;
+	LONG32 addr,data,n1,n2,n3;
 
 	switch (primitive) {
 
 		case COP_STORE:																// store word in memory
-			PULLD(addr);PULLD(data);memory[addr >> 2] = data;
+			PULLD(addr);addr &= MMASK;PULLD(data);memory[addr >> 2] = data;
 			break;
 
 		case COP_MUL:
+			PULLD(n1);PULLD(n2);n1 = (n1 * n2) & 0xFFFFFFFF;PUSHD(n1);
 			break;
 
 		case COP_ADD:
+			PULLD(n1);PULLD(n2);n1 = (n1 + n2) & 0xFFFFFFFF;PUSHD(n1);
 			break;
 
 		case COP_ADD_STORE:
+			PULLD(addr);addr &= MMASK;PULLD(data);memory[addr >> 2] += data;
 			break;
 
 		case COP_SUB:
+			PULLD(n1);PULLD(n2);n1 = (n2 - n1) & 0xFFFFFFFF;PUSHD(n1);
 			break;
 
 		case COP_DIV:
+			PULLD(n1);PULLD(n2);n1 = (n1 == 0) ? 0 : (n2 / n1);PUSHD(n1);
 			break;
 
 		case COP_0_SUB:
+			PULLD(n1);PUSHD((-n1) & 0xFFFFFFFF);
 			break;
 
 		case COP_0_LESS:
+			PULLD(n1);PUSHT(n1 & 0x80000000);
 			break;
 
 		case COP_0_EQUAL:
+			PULLD(n1);PUSHT(n1 == 0);
 			break;
 
 		case COP_0_GREATER:
+			PULLD(n1);PUSHT((n1 != 0) && ((n1 & 0x80000000) == 0))
 			break;
 
 		case COP_1_ADD:
+			PULLD(n1);PUSHD((n1+1) & 0xFFFFFFFF);
 			break;
 
 		case COP_1_SUB:
+			PULLD(n1);PUSHD((n1-1) & 0xFFFFFFFF);
 			break;
 
 		case COP_2_MUL:
+			PULLD(n1);PUSHD((n1 << 1) & 0xFFFFFFFF);
 			break;
 
 		case COP_2_DIV:
+			PULLD(n1);PUSHD((n1 >> 1) & 0x7FFFFFFF);
 			break;
 
 		case COP_RETURN:
+			PULLR(pctr);pctr = (pctr & MMASK) & 0xFFFFFFFC;
 			break;
 
 		case COP_GREATER_R:
+			PULLD(n1);PUSHR(n1);
 			break;
 
 		case COP_READ:
+			PULLD(addr);addr &= MMASK;data = memory[addr >> 2];PUSHD(data);
 			break;
 
 		case COP_AND:
+			PULLD(n1);PULLD(n2);n1 = n1 & n2;PUSHD(n1);
 			break;
 
 		case COP_C_STORE:
+			PULLD(addr);addr &= MMASK;PULLD(data);bMemory[addr] = data;
 			break;
 
 		case COP_C_READ:
+			PULLD(addr);addr &= MMASK;data = bMemory[addr];PUSHD(data);
 			break;
 
 		case COP_DROP:
+			PULLD(n1);
 			break;
 
 		case COP_DSP_STORE:
+			PULLD(n1);dsp = n1 & MMASK & 0xFFFFFFFC;
 			break;
 
 		case COP_DSP_READ:
+			n1 = dsp;PUSHD(n1);
 			break;
 
 		case COP_DUP:
+			PULLD(n1);PUSHD(n1);PUSHD(n1);
 			break;
 
 		case COP_FOR:
+			// TODO
 			break;
 
 		case COP_IF:
+			// TODO
 			break;
 
 		case COP_NEXT:
+			// TODO
 			break;
 
 		case COP_NOT:
+			PULLD(n1);n1 = n1 & 0xFFFFFFFF;PUSHD(n1);
 			break;
 
 		case COP_OR:
+			PULLD(n1);PULLD(n2);n1 = n1 | n2;PUSHD(n1);
 			break;
 
 		case COP_OVER:
+			PULLD(n1);PULLD(n2);PUSHD(n2);PUSHD(n1);PUSHD(n2);
 			break;
 
 		case COP_R_GREATER:
+			PULLR(n1);PUSHD(n1);
 			break;
 
 		case COP_RDROP:
+			PULLR(n1);
 			break;
 
 		case COP_ROT:
+			PULLD(n1);PULLD(n2);PULLD(n3);
+			PUSHD(n2);PUSHD(n1);PUSHD(n3);
 			break;
 
 		case COP_RSP_STORE:
+			PULLD(n1);rsp = n1 & MMASK & 0xFFFFFFFC;
 			break;
 
 		case COP_RSP_READ:
+			n1 = rsp;PUSHD(n1);
 			break;
 
 		case COP_SWAP:
+			PULLD(n1);PULLD(n2);PUSHD(n1);PUSHD(n2);
 			break;
 
 		case COP_THEN:
+			// Does nothing, marker for IF.
 			break;
 
 		case COP_XOR:
+			PULLD(n1);PULLD(n2);n1 = n1 ^ n2;PUSHD(n1);
 			break;
 
 	}
@@ -247,8 +290,8 @@ BYTE8 CPUExecute(LONG32 breakPoint1,LONG32 breakPoint2) {
 // *******************************************************************************************************************************
 
 LONG32 CPUGetStepOverBreakpoint(void) {
-	BYTE8 opcode = memory[pctr >> 2] >> 28;
-	if (opcode != 0xC) return 0;													// Not a call.
+	BYTE8 opcode = memory[pctr >> 2] & 3;											// Get instruction type.
+	if (opcode != 0) return 0;														// Not a call.
 	return (pctr+4) & 0xFFFFF;														// Instruction after next.	
 }
 
