@@ -56,7 +56,7 @@ static void __DBGXDecode(LONG32 addr,char *buffer) {
 //											This renders the debug screen
 // *******************************************************************************************************************************
 
-static const char *labels[] = { "PCTR","DSP","RSP","BRK", NULL };
+static const char *labels[] = { "PCTR","DSP","RSP","STR","BRK", NULL };
 
 void DBGXRender(int *address,int runMode) {
 	CPUSTATUS *s = CPUGetStatus();
@@ -66,11 +66,12 @@ void DBGXRender(int *address,int runMode) {
 	GFXNumber(GRID(37,0),s->pc,16,5,GRIDSIZE,DBGC_DATA,-1);
 	GFXNumber(GRID(37,1),s->dsp,16,5,GRIDSIZE,DBGC_DATA,-1);
 	GFXNumber(GRID(37,2),s->rsp,16,5,GRIDSIZE,DBGC_DATA,-1);
-	GFXNumber(GRID(37,3),address[3],16,5,GRIDSIZE,DBGC_DATA,-1);
+	GFXNumber(GRID(37,3),s->sbptr,16,5,GRIDSIZE,DBGC_DATA,-1);
+	GFXNumber(GRID(37,4),address[3],16,5,GRIDSIZE,DBGC_DATA,-1);
 
 	for (int i = 0;i < 2;i++) {
 		int x = 26 + i*9;
-		int y = 5;
+		int y = 6;
 		const char *st = (i == 0) ? "DATA":"RETURN";
 		GFXString(GRID(x+4-strlen(st)/2,y),st,GRIDSIZE,DBGC_ADDRESS,-1);
 		y++;

@@ -22,13 +22,15 @@ BYTE8 CPUExecuteInstruction(void);
 #define MSIZE 		0x40000															// Word Memory Size
 #define MMASK 		0xFFFFF 														// Address mask.
 
-#define RST_RSP 	0x7F000
+#define RST_RSP 	0x7F000															// Initial stack values
 #define RST_DSP 	0x7E000
+
+#define STRBUFSIZE	512																// Size of string buffer.
 
 #ifdef INCLUDE_DEBUGGING_SUPPORT													// Only required for debugging
 
 typedef struct __CPUSTATUS {
-	long pc,rsp,dsp,cycles;
+	long pc,rsp,dsp,cycles,sbptr;
 } CPUSTATUS;
 
 CPUSTATUS *CPUGetStatus(void);

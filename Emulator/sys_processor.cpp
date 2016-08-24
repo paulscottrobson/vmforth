@@ -30,11 +30,14 @@ static void _CPUExecutePrimitive(BYTE8 opcode);
 // *******************************************************************************************************************************
 
 static LONG32 memory[MSIZE] = { 0 }; 												// 256k words of memory. (1M Bytes) 00000-FFFFF
-static LONG32 pctr;
-static LONG32 rsp;
-static LONG32 dsp;
-static LONG32 cycles;
 static BYTE8* bMemory = (BYTE8 *)memory;											// Access memory byte wise.
+
+static LONG32 pctr;																	// Program counter
+static LONG32 rsp;																	// Return stack pointer
+static LONG32 dsp;																	// Data stack pointer
+static LONG32 cycles;																// Cycle counter
+static BYTE8  stringBuffer[STRBUFSIZE];												// String buffer
+static LONG32 stringBufferPointer; 													// String buffer index.
 
 // *******************************************************************************************************************************
 //															Stack
@@ -68,16 +71,10 @@ void CPUReset(void) {
 	rsp = RST_RSP;
 	dsp = RST_DSP;
 	cycles = 0;
-	LITERAL(2);
-	CALL(0x20);
-	LITERAL(3);
-
-	pctr = 0x20 >> 2;
-	memory[pctr-3] = COMPOSE(3,'d','e','m','o');
-	memory[pctr-2] = COMPOSE(2,'w','d',0,0);
-	memory[pctr-1] = 0x20;
-	LITERAL(-1);
-	CORE(COP_RETURN);
+	stringBufferPointer = 0;
+	memory[0] = COMPOSE(0,'h','e','l','l');
+	memory[1] = COMPOSE(1,'o',' ','w','o');
+	memory[2] = COMPOSE(1,'r','l','d',0);
 	pctr = 0x00000;
 }
 
@@ -98,6 +95,15 @@ BYTE8 CPUExecuteInstruction(void) {
 			_CPUExecutePrimitive(instruction >> 2);
 			break;
 		case 2:																		// 02 definition/string
+			if ((instruction & 0x80000000) == 0) {									// Must be 00 or 01
+				if ((instruction & 0x40000000) == 0) stringBufferPointer = 0;		// if 00 reset string pointer.
+				stringBuffer[stringBufferPointer++] = (instruction >> 23) & 0x7F;	// copy data in.
+				stringBuffer[stringBufferPointer++] = (instruction >> 16) & 0x7F;	
+				stringBuffer[stringBufferPointer++] = (instruction >> 9) & 0x7F;	
+				stringBuffer[stringBufferPointer++] = (instruction >> 2) & 0x7F;	
+				stringBuffer[stringBufferPointer] = '\0';							// Force ASCIIZ.
+				stringBufferPointer = stringBufferPointer % STRBUFSIZE;				// Wrap it round.
+			}
 			break;
 		case 3:																		// 03 literal.
 			instruction = instruction >> 2;											// 30 bit unsigned.
@@ -284,7 +290,6 @@ static void _CPUExecutePrimitive(BYTE8 primitive) {
 			break;
 
 		case COP_THEN:
-			// Does nothing, marker for IF.
 			break;
 
 		case COP_XOR:
@@ -354,7 +359,9 @@ void CPULoadBinary(const char *fileName) {
 static CPUSTATUS s;																	// Status area
 
 CPUSTATUS *CPUGetStatus(void) {
-	s.pc = pctr;s.dsp = dsp;s.rsp = rsp;s.cycles = cycles;
+	s.pc = pctr;s.dsp = dsp;s.rsp = rsp;
+	s.cycles = cycles;
+	s.sbptr = stringBufferPointer;
 	return &s;
 }
 
