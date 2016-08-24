@@ -19,6 +19,9 @@ typedef unsigned char  BYTE8;
 void CPUReset(void);
 BYTE8 CPUExecuteInstruction(void);
 
+#define MSIZE 		0x40000															// Word Memory Size
+#define MMASK 		0xFFFFF 														// Address mask.
+
 #define RST_RSP 	0x7F000
 #define RST_DSP 	0x7E000
 

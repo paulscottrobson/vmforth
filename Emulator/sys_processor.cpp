@@ -29,9 +29,7 @@ static void _CPUExecutePrimitive(BYTE8 opcode);
 //														CPU / Memory
 // *******************************************************************************************************************************
 
-#define MMASK 0x3FFFF 
-
-static LONG32 memory[0x40000]; 														// 256k words of memory. (1M Bytes) 00000-FFFFF
+static LONG32 memory[MSIZE] = { 0 }; 												// 256k words of memory. (1M Bytes) 00000-FFFFF
 static LONG32 pctr;
 static LONG32 rsp;
 static LONG32 dsp;
@@ -61,6 +59,8 @@ static BYTE8* bMemory = (BYTE8 *)memory;											// Access memory byte wise.
 
 #define LITERAL(x)  memory[pctr++] = ((((x) & 0x3FFFFFFF) << 2) | 3)				// Assembler Macros
 #define CORE(x) memory[pctr++] = ((x) << 2) | 1
+#define CALL(a) memory[pctr++] = (a) & 0xFFFFFFFC
+#define COMPOSE(t,c1,c2,c3,c4) (t << 30) | (c4 << 2) | (c3 << 9) | (c2 << 16) | (c1 << 23) | 2
 
 void CPUReset(void) {
 	HWIReset();
@@ -68,11 +68,16 @@ void CPUReset(void) {
 	rsp = RST_RSP;
 	dsp = RST_DSP;
 	cycles = 0;
-	LITERAL(1);
 	LITERAL(2);
+	CALL(0x20);
 	LITERAL(3);
-	CORE(COP_ROT);
 
+	pctr = 0x20 >> 2;
+	memory[pctr-3] = COMPOSE(3,'d','e','m','o');
+	memory[pctr-2] = COMPOSE(2,'w','d',0,0);
+	memory[pctr-1] = 0x20;
+	LITERAL(-1);
+	CORE(COP_RETURN);
 	pctr = 0x00000;
 }
 
@@ -87,6 +92,7 @@ BYTE8 CPUExecuteInstruction(void) {
 
 	switch (instruction & 3) {
 		case 0:																		// 00 call
+			PUSHR(pctr);pctr = instruction & MMASK;
 			break;
 		case 1:																		// 01 core command
 			_CPUExecutePrimitive(instruction >> 2);
@@ -112,6 +118,7 @@ BYTE8 CPUExecuteInstruction(void) {
 
 static void _CPUExecutePrimitive(BYTE8 primitive) {
 	LONG32 addr,data,n1,n2,n3;
+	BYTE8 found;
 
 	switch (primitive) {
 
@@ -211,16 +218,32 @@ static void _CPUExecutePrimitive(BYTE8 primitive) {
 			PULLD(n1);PUSHD(n1);PUSHD(n1);
 			break;
 
-		case COP_FOR:
-			// TODO
+		case COP_FOR:															// FOR should not be nested even though it works.
+			PUSHR(pctr);														// Push loop address
+			PULLD(n1);PUSHR(n1-1);												// Push counter
 			break;
 
-		case COP_IF:
-			// TODO
+		case COP_IF:															// IF is not nestable as in ColorFORTH.
+			PULLD(n1);
+			if (n1 == 0) {														// Test failed
+				found = 0;
+				while (found == 0) {											// Keep skipping
+					n2 = memory[pctr >> 2];										// Fetch
+					pctr = (pctr + 4) & MMASK;
+					if (n2 == ((COP_THEN << 2) | 1)) found = 1;					// Exit if THEN
+					if (n2 == ((COP_RETURN << 2) | 1)) found = 1;				// Exit if ; [RETURN]
+					if ((n2 & 0xC0000003) == 0x80000002) found = 1; 			// Run into another definition ????
+				} 
+			}
 			break;
 
 		case COP_NEXT:
-			// TODO
+			PULLR(n1);PULLR(addr);												// Restore count, loop address.
+			n1 = (n1 - 1) & 0xFFFFFFFF;
+			if ((n1 & 0x80000000) == 0) {										// Loop back
+				pctr = addr;
+				PUSHR(addr);PUSHR(n1);
+			}
 			break;
 
 		case COP_NOT:

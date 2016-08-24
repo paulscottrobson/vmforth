@@ -31,6 +31,28 @@ static BYTE8 __fontData[] = {
 static WORD16 __colours[8] = { 0x222,0xF00,0x0F0,0xFF0,0x00F,0xF0F,0x0FF,0xFFF };
 
 // *******************************************************************************************************************************
+//										Find name of routine by looking for the header
+// *******************************************************************************************************************************
+
+static void __DBGXDecode(LONG32 addr,char *buffer) {
+	sprintf(buffer,"(%x)",addr);
+	addr = (addr - 8) & MMASK;														// Look at previous word skipping link.
+	if ((CPUReadMemory(addr) & 0xC0000003) == 0x80000002) {							// Header String there ?
+		while ((CPUReadMemory(addr) & 0xC0000003) != 0xC0000002)					// Work backward to first element.
+			addr = (addr - 4) & MMASK;
+		while ((CPUReadMemory(addr) & 0x80000003) == 0x80000002) {					// Work forward
+			LONG32 w = CPUReadMemory(addr);											// Get string
+			addr = (addr + 4) & MMASK;												// Next word.
+			*buffer++ = (w >> 23) & 0x7F;											// Decode text out.
+			*buffer++ = (w >> 16) & 0x7F;
+			*buffer++ = (w >> 9) & 0x7F;
+			*buffer++ = (w >> 2) & 0x7F;
+		}
+		*buffer = '\0';
+	}
+}
+
+// *******************************************************************************************************************************
 //											This renders the debug screen
 // *******************************************************************************************************************************
 
@@ -80,17 +102,27 @@ void DBGXRender(int *address,int runMode) {
 		GFXNumber(GRID(0,y),addr,16,5,GRIDSIZE,isBrk ? DBGC_HIGHLIGHT:DBGC_ADDRESS,-1);
 		//GFXNumber(GRID(6,y),code,16,8,GRIDSIZE,isBrk ? DBGC_HIGHLIGHT:DBGC_DATA,-1);
 
-		char szBuffer[64];
+		char szBuffer[64],*p;
 		int colour = DBGC_DATA;
 		strcpy(szBuffer,"?");
 		switch(code & 3) {
-			case 0:		break; // CALL			
+			case 0:		__DBGXDecode(code,szBuffer);
+						colour = 0xF80;
+						break;
 			case 1:		code = code >> 2;
 						sprintf(szBuffer,"(core %x)",code);
 						if (code >= 0 && code < COP_COUNT) strcpy(szBuffer,__primitives[code]);
 						colour = 0x0FF;
 						break;
-			case 2: 	break; // STRING
+			case 2: 	sprintf(szBuffer,"[%d]",(code >> 30) & 3);
+						p = szBuffer+strlen(szBuffer);
+						*p++ = (code >> 23) & 0x7F;
+						*p++ = (code >> 16) & 0x7F;
+						*p++ = (code >> 9) & 0x7F;
+						*p++ = (code >> 2) & 0x7F;
+						*p = '\0';
+						colour = (code & 0x80000000) ? 0xFFF : 0x666;
+						break;
 			case 3:		code = (code >> 2);
 						if (code & 0x20000000) code |= 0xC0000000;
 						sprintf(szBuffer,"%x",code);
