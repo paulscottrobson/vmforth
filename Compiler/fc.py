@@ -7,7 +7,7 @@ class CoreOperations:
 	def __init__(self):
 		core = """		
 				@ ! c@ c! +! + - * / and or xor not 0= 0> 0< 0- 1+ 1- 2* 2/ dup drop swap rot over ; 
-				r> >r rdrop if then for next dsp! dsp@ rsp! rsp@
+				r> >r if then for next dsp! dsp@ rsp! rsp@ $$branch $$hwio
 			"""																				# core words.
 		self.coreList = core.lower().split()												# make a list of words
 		self.coreList.sort()																# alphabetical order
@@ -41,7 +41,7 @@ class CoreOperations:
 		s = s.replace("@","_READ_").replace("!","_STORE_").replace("+","_ADD_")				# convert word to valid C identifier
 		s = s.replace("-","_SUB_").replace("/","_DIV_").replace(">","_GREATER_")
 		s = s.replace("*","_MUL_").replace("<","_LESS_").replace("=","_EQUAL_")
-		s = s.replace(";","_RETURN_")
+		s = s.replace(";","_RETURN_").replace("$","_SYS_")
 		s = s.replace("__","_")
 		s = s[1:] if s[0] == "_" else s
 		s = s[:-1] if s[-1] == "_" else s

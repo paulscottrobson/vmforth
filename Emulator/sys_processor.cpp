@@ -75,6 +75,10 @@ void CPUReset(void) {
 	memory[0] = COMPOSE(0,'h','e','l','l');
 	memory[1] = COMPOSE(1,'o',' ','w','o');
 	memory[2] = COMPOSE(1,'r','l','d',0);
+	pctr = 3;
+	LITERAL(4);
+	CORE(COP_SYS_SYS_BRANCH);
+
 	pctr = 0x00000;
 }
 
@@ -132,6 +136,14 @@ static void _CPUExecutePrimitive(BYTE8 primitive) {
 			PULLD(addr);addr &= MMASK;PULLD(data);memory[addr >> 2] = data;
 			break;
 
+		case COP_SYS_SYS_BRANCH:
+			PULLD(pctr);
+			pctr = pctr & MMASK & 0xFFFFFFFC;
+			break;
+
+		case COP_SYS_SYS_HWIO:
+			break;
+			
 		case COP_MUL:
 			PULLD(n1);PULLD(n2);n1 = (n1 * n2) & 0xFFFFFFFF;PUSHD(n1);
 			break;
@@ -266,10 +278,6 @@ static void _CPUExecutePrimitive(BYTE8 primitive) {
 
 		case COP_R_GREATER:
 			PULLR(n1);PUSHD(n1);
-			break;
-
-		case COP_RDROP:
-			PULLR(n1);
 			break;
 
 		case COP_ROT:
